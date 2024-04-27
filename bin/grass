@@ -46,10 +46,14 @@ options() {
 
 _shutdown() {
 	notify-send Shutdown "Shutting down Now..."
+	sleep 1
+	shutdown now
 }
 
 _reboot() {
 	notify-send Reboot "Rebooting Now..."
+	sleep 1
+	reboot
 }
 
 confirmation() {
