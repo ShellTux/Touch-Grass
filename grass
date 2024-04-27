@@ -147,11 +147,14 @@ then
 fi
 
 option="$(options | $menu)"
-env --unset=TMUX --chdir="$HOME" \
-	"$terminal_desktop" -e grass upgrade-system >/dev/null 2>&1
 
 case "$option" in
-	shutdown) _shutdown ;;
-	reboot) _reboot ;;
+	shutdown | reboot)
+		(pacman -Qu || yay --aur -Qu) >/dev/null 2>&1 \
+			&& env --unset=TMUX --chdir="$HOME" \
+			"$terminal_desktop" -e grass upgrade-system >/dev/null 2>&1
+		sleep 1
+		_"$option"
+		;;
 	*) usage ;;
 esac
