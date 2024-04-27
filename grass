@@ -1,0 +1,157 @@
+#!/bin/sh
+set -e
+
+usage() {
+	echo "Usage: $(basename "$0") [options]"
+	echo "Options:"
+	echo "  -m, --menu MENU    Specify menu tool to use (default: fzf)"
+	echo "  -h, --help         Display this help message"
+	exit 1
+}
+
+getch () {
+	old_tty_settings="$(stty --save)"
+	stty raw -echo
+	char=$(dd bs=1 count=1 2>/dev/null)
+	stty "$old_tty_settings"
+	printf '%c' "$char"
+}
+
+terminals() {
+	echo kitty
+	echo wezterm
+	echo alacritty
+	echo st
+	echo konsole
+	echo cool-retro-term
+	echo deepin-terminal
+	echo foot
+	echo qterminal
+	echo xterm
+}
+
+find_terminal_desktop() {
+	for terminal in $(terminals)
+		do
+			command -v "$terminal" >/dev/null 2>&1 || continue
+			echo "$terminal"
+			return
+		done
+}
+
+options() {
+	echo shutdown
+	echo reboot
+}
+
+_shutdown() {
+	notify-send Shutdown "Shutting down Now..."
+}
+
+_reboot() {
+	notify-send Reboot "Rebooting Now..."
+}
+
+confirmation() {
+	printf '[y/N] '
+	confirm="$(getch)"
+	printf '%s\n' "$confirm"
+
+	[ ! "$confirm" = y ] && [ ! "$confirm" = Y ] && return 1 || return 0
+}
+
+upgrade_system() {
+	echo System Upgrade
+	printf 'Run: sudo pacman -Syyu '
+	(
+	if confirmation
+	then
+		set -x
+		sudo pacman -Syyu
+	fi
+	)
+
+	printf 'Run: yay -Syyu --aur --devel '
+	(
+	if confirmation
+	then
+		set -x
+		yay -Syyu --aur --devel
+	fi
+	)
+
+	notify-send Upgrade 'Your System Upgraded Successfully'
+}
+
+if [ "$1" = upgrade-system ]
+then
+	tmux_session_name=Upgrade-System
+
+	if command -v tmux >/dev/null 2>&1 && [ -z "$TMUX" ]
+	then
+		tmux list-sessions -F "#{session_name}" | grep --quiet '^Upgrade-System$'\
+			|| tmux new-session -s "$tmux_session_name" grass upgrade-system \
+			&& tmux attach-session -t "$tmux_session_name"
+	else
+		upgrade_system
+	fi
+	exit
+fi
+
+menu=fzf
+terminal_desktop=$(find_terminal_desktop)
+
+TEMP=$(getopt \
+	--options 'm:h' \
+	--long 'menu:,help' \
+	--name "$(basename "$0")" -- "$@")
+
+# shellcheck disable=SC2181
+if [ $? -ne 0 ]
+then
+	echo 'Terminating...' >&2
+	exit 1
+fi
+
+# Note the quotes around "$TEMP": they are essential!
+eval set -- "$TEMP"
+unset TEMP
+
+while true
+do
+	case "$1" in
+		-m | --menu)
+			menu="$2"
+			shift 2
+			continue
+			;;
+		-h | --help) usage ;;
+		--)
+			shift
+			break
+			;;
+		*) # Option not dealt with
+			echo 'Internal error!' >&2
+			exit 1
+			;;
+	esac
+done
+
+if [ -z "$terminal_desktop" ]
+then
+	{
+		echo "No terminal found:"
+		terminals | sed 's|^|- |'
+	} >&2
+	exit 1
+fi
+
+option="$(options | $menu)"
+env --unset=TMUX --chdir="$HOME" \
+	"$terminal_desktop" -e grass upgrade-system >/dev/null 2>&1
+
+case "$option" in
+	shutdown) _shutdown ;;
+	reboot) _reboot ;;
+	*) usage ;;
+esac
