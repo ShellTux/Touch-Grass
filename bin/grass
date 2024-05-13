@@ -93,9 +93,7 @@ then
 
 	if command -v tmux >/dev/null 2>&1 && [ -z "$TMUX" ]
 	then
-		tmux list-sessions -F "#{session_name}" | grep --quiet '^Upgrade-System$'\
-			|| tmux new-session -s "$tmux_session_name" grass upgrade-system \
-			&& tmux attach-session -t "$tmux_session_name"
+		tmux new-session -A -s "$tmux_session_name" grass upgrade-system
 	else
 		upgrade_system
 	fi
